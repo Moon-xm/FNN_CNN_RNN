@@ -10,10 +10,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 import math
+import os
 
 EPOCH = 20
 LEARNING_RATE = 0.01
 BATCH_SIZE = 64
+model_save_dir = 'modelSave/'
+model_save_path = model_save_dir+'AdvancedCNNModel.pth'
 
 class InceptionA(nn.Module):  # inception：开端
 	def __init__(self, in_channel):
@@ -95,14 +98,10 @@ class MyNet(nn.Module):
 	def forward(self, x):
 		batch_size = x.size(0)
 		x = self.layer1(x)
-		for i in range(20):
-			x = self.layer2(x)
-		# x = self.layer2(x)
+		x = self.layer2(x)
 		x = self.layer3(x)
 		x = self.layer4(x)
-		for i in range(12):
-			x = self.layer5(x)
-		# x = self.layer5(x)
+		x = self.layer5(x)
 		x = self.layer6(x)
 		x = x.view(batch_size, -1)
 		x = self.fc(x)
@@ -168,7 +167,6 @@ if __name__ == '__main__':
 	# design model using class
 	model = MyNet()  # 实例化model
 	device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-	print('Running on: ', device)
 	model.to(device)
 	print(model)
 
@@ -180,13 +178,32 @@ if __name__ == '__main__':
 
 	# training and test cycle
 	start = time.time()
+	max_param = -100
 	# loss_ls = []
 	accuracy_ls = []
-	for epoch in range(EPOCH):
+	if os.path.exists(model_save_dir):
+		os.mkdir(model_save_dir)
+	if os.path.exists(model_save_path):  # 有保存的模型 则加载模型 并继续训练
+		ckpt = torch.load(model_save_path)
+		model.load_state_dict(ckpt['model'])
+		optimizer.load_state_dict(ckpt['optimizer'])
+		start_epoch = ckpt['epoch']
+		print('='*20,f'Load epoch {start_epoch} successful','='*20)
+	else:
+		start_epoch = 0
+		print('='*20,'No pre-train model found','='*20)
+
+	print('=' * 20, 'start training on:', device, '=' * 20)
+	for epoch in range(start_epoch+1, EPOCH+1):  # 1~EPOCH
 		loss = train()
 		accuracy = test()
 		total_time = time_since(start)
-		print('EPOCH:{}, Loss:{}， accuracy: {:.2f}%, total time: {} '.format(epoch+1, loss, accuracy*100, total_time))
+		print('EPOCH:{}, Loss:{:.4f}， accuracy on test set: {:.2f}%, total time: {} '.format(epoch, loss, accuracy*100, total_time))
+		if accuracy > max_param:  # 保存最佳精确率模型
+			min_param = accuracy
+			state = {'model': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': epoch}  # 需要保存的模型参数
+			torch.save(state, model_save_path)
+			print('='*20,f'save model successful at epoch {epoch} ','='*20)
 		# loss_ls.append(loss)
 		accuracy_ls.append(accuracy)
 
@@ -195,5 +212,5 @@ if __name__ == '__main__':
 	plt.plot(epoch_np, accuracy_np)
 	plt.xlabel('Accuracy')
 	plt.ylabel('Loss')
-	plt.savefig('AccuracyWithResidualBlockInception.png')
+	plt.savefig('Accuracy.png')
 	plt.show()

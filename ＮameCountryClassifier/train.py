@@ -4,10 +4,11 @@ from torch.utils.data import DataLoader
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from tools import time_since
+from tools import time_since, create_dir_not_exit
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 BATCH_SIZE = 64
 NUM_WORKERS = 0
@@ -16,6 +17,8 @@ N_LAYER = 2  # gru层数
 N_CHARS = 128  # 字典长度  即所有输入字符的类别 最小是所有大小写字母的数量
 LEARNING_RATE = 0.01
 EPOCH = 20  # 训练轮数
+model_save_dir = 'modelSave/'
+model_save_path = model_save_dir+'model.pth'
 
 
 # device config
@@ -23,7 +26,6 @@ if USE_GPU and torch.cuda.is_available():
 	device = torch.device('cuda:0')
 else:
 	device = torch.device('cpu')
-print('Running on: ', device)
 
 # load dataset
 train_set = NameDataset(train=True)
@@ -75,18 +77,37 @@ def test():
 if __name__ == "__main":
 	start = time.time()
 	acc_ls = []
+	max_acc = -1
 	# loss_ls = []
-	print('='*10,'Start training','='*10)
-	for epoch in range(EPOCH):
+	create_dir_not_exit(model_save_dir)
+	if os.path.exists(model_save_path):  # 存在则加载模型 并继续训练
+		ckpt = torch.load(model_save_path)
+		model.load_state_dict(ckpt['model'])
+		optimizer.load_state_dict(ckpt['optimizer'])
+		start_epoch = ckpt['epoch']
+		print('='*20,f'Load epoch {start_epoch} successful','='*20)
+	else:
+		start_epoch = 0
+		print('='*20,'No pre-train model found','='*20)
+
+	print('='*20,'Start training on:',device,'='*20)
+	for epoch in range(start_epoch+1, EPOCH+1):
 		loss = train()
 		acc = test()
 		# loss_ls.append(loss)
 		acc_ls.append(acc)
-		print('EPOCH: {}, Loss: {:.4f}, Accuracy: {:.2f}%, Time use: {}'.format(
-			epoch+1, loss, acc*100, time_since(start)
+		print('EPOCH: {}, Loss: {:.4f}, Accuracy on test set: {:.2f}%, Time using: {}'.format(
+			epoch, loss, acc*100, time_since(start)
 		))
+		if acc > max_acc:
+			max_acc = acc
+			state = {'model':model.state_dict(), 'optimizer':optimizer.state_dict, 'epoch':epoch}
+			torch.save(state, model_save_path)
+			print(f'save model successful at epoch {epoch} ')
+
 
 	# plot the accuracy
+	create_dir_not_exit('result')
 	epoch_np = np.arange(1, EPOCH + 1, 1)
 	acc_np = np.array(acc_ls)
 	plt.plot(epoch_np, acc_np)
