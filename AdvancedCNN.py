@@ -16,201 +16,217 @@ EPOCH = 20
 LEARNING_RATE = 0.01
 BATCH_SIZE = 64
 model_save_dir = 'modelSave/'
-model_save_path = model_save_dir+'AdvancedCNNModel.pth'
+model_save_path = model_save_dir + 'AdvancedCNNModel.pth'
+
 
 class InceptionA(nn.Module):  # inception：开端
-	def __init__(self, in_channel):
-		super(InceptionA, self).__init__()
-		self.branch_pool_1 = nn.AvgPool2d(3, padding=1, stride=1)  # 均值池化  padding 保证最后输出的图像W H 和原来的一样
-		self.branch_pool_2 = nn.Conv2d(in_channel, 24, kernel_size=1)
+    def __init__(self, in_channel):
+        super(InceptionA, self).__init__()
+        self.branch_pool_1 = nn.AvgPool2d(3, padding=1, stride=1)  # 均值池化  padding 保证最后输出的图像W H 和原来的一样
+        self.branch_pool_2 = nn.Conv2d(in_channel, 24, kernel_size=1)
 
-		self.branch1x1 = nn.Conv2d(in_channel, 16, kernel_size=1)
+        self.branch1x1 = nn.Conv2d(in_channel, 16, kernel_size=1)
 
-		self.branch5x5_1 = nn.Conv2d(in_channel, 16, kernel_size=1)
-		self.branch5x5_2 = nn.Conv2d(16, 24, kernel_size=5, padding=2)
+        self.branch5x5_1 = nn.Conv2d(in_channel, 16, kernel_size=1)
+        self.branch5x5_2 = nn.Conv2d(16, 24, kernel_size=5, padding=2)
 
-		self.branch3x3_1 = nn.Conv2d(in_channel, 16, kernel_size=1)
-		self.branch3x3_2 = nn.Conv2d(16, 24, kernel_size=3, padding=1)
-		self.branch3x3_3 = nn.Conv2d(24, 24, kernel_size=3, padding=1)
+        self.branch3x3_1 = nn.Conv2d(in_channel, 16, kernel_size=1)
+        self.branch3x3_2 = nn.Conv2d(16, 24, kernel_size=3, padding=1)
+        self.branch3x3_3 = nn.Conv2d(24, 24, kernel_size=3, padding=1)
 
-	def forward(self, x):
-		branch_pool = self.branch_pool_1(x)
-		branch_pool = self.branch_pool_2(branch_pool)
+    def forward(self, x):
+        branch_pool = self.branch_pool_1(x)
+        branch_pool = self.branch_pool_2(branch_pool)
 
-		branch1x1 = self.branch1x1(x)
+        branch1x1 = self.branch1x1(x)
 
-		branch5x5 = self.branch5x5_1(x)
-		branch5x5 = self.branch5x5_2(branch5x5)
+        branch5x5 = self.branch5x5_1(x)
+        branch5x5 = self.branch5x5_2(branch5x5)
 
-		branch3x3 = self.branch3x3_1(x)
-		branch3x3 = self.branch3x3_2(branch3x3)
-		branch3x3 = self.branch3x3_3(branch3x3)
+        branch3x3 = self.branch3x3_1(x)
+        branch3x3 = self.branch3x3_2(branch3x3)
+        branch3x3 = self.branch3x3_3(branch3x3)
 
-		outputs = [branch_pool, branch1x1, branch5x5, branch3x3]  # batch_size x channel x W x H
-		return torch.cat(outputs, dim=1)
+        outputs = [branch_pool, branch1x1, branch5x5, branch3x3]  # batch_size x channel x W x H
+        return torch.cat(outputs, dim=1)
+
 
 class ResidualBlock(nn.Module):  # 残差网络
-	def __init__(self, channel):
-		super(ResidualBlock, self).__init__()
-		# self.layer1 = nn.Conv2d(channel, channel, kernel_size=1)
-		self.layer2 = nn.Sequential(
-			nn.BatchNorm2d(channel),
-			nn.ReLU(),
-			nn.Conv2d(channel, channel, kernel_size=3, padding=1),
-			nn.BatchNorm2d(channel),
-			nn.ReLU(),
-			nn.Conv2d(channel, channel, kernel_size=3, padding=1)
-		)
+    def __init__(self, channel):
+        super(ResidualBlock, self).__init__()
+        # self.layer1 = nn.Conv2d(channel, channel, kernel_size=1)
+        self.layer2 = nn.Sequential(
+            nn.BatchNorm2d(channel),
+            nn.ReLU(),
+            nn.Conv2d(channel, channel, kernel_size=3, padding=1),
+            nn.BatchNorm2d(channel),
+            nn.ReLU(),
+            nn.Conv2d(channel, channel, kernel_size=3, padding=1)
+        )
 
-	def forward(self, x):
-		# x = self.layer1(x)
-		y = self.layer2(x)
-		output = F.relu(y + x)
-		return output
+    def forward(self, x):
+        # x = self.layer1(x)
+        y = self.layer2(x)
+        output = F.relu(y + x)
+        return output
+
 
 class MyNet(nn.Module):
-	def __init__(self):
-		super(MyNet, self).__init__()
-		self.layer1 = nn.Sequential(  # 顺序的
-			nn.BatchNorm2d(3),  # 归一化层 加上效果会好很多！
-			nn.ReLU(),
-			nn.Conv2d(3, 10, kernel_size=5),
-			nn.MaxPool2d(2)
-		)
-		self.layer2 = ResidualBlock(10)  # 残差网络
-		self.layer3 = InceptionA(10)  # Inception
-		self.layer4 = nn.Sequential(
-			nn.BatchNorm2d(88),  # 归一化层 加上效果会好很多！
-			nn.ReLU(),
-			nn.Conv2d(88, 20, kernel_size=5),
-			nn.MaxPool2d(2)
-		)
-		self.layer5 = ResidualBlock(20)
-		self.layer6 = InceptionA(20)
-		self.fc = nn.Sequential(
-			nn.Linear(88*5*5, 128),
-			nn.ReLU(),
-			nn.Linear(128, 64),
-			nn.ReLU(),
-			nn.Linear(64, 10)
-		)
+    def __init__(self):
+        super(MyNet, self).__init__()
+        self.layer1 = nn.Sequential(  # 顺序的
+            nn.BatchNorm2d(3),  # 归一化层 加上效果会好很多！
+            nn.ReLU(),
+            nn.Conv2d(3, 10, kernel_size=5),
+            nn.MaxPool2d(2)
+        )
+        self.layer2 = ResidualBlock(10)  # 残差网络
+        self.layer3 = InceptionA(10)  # Inception
+        self.layer4 = nn.Sequential(
+            nn.BatchNorm2d(88),  # 归一化层 加上效果会好很多！
+            nn.ReLU(),
+            nn.Conv2d(88, 20, kernel_size=5),
+            nn.MaxPool2d(2)
+        )
+        self.layer5 = ResidualBlock(20)
+        self.layer6 = InceptionA(20)
+        self.fc = nn.Sequential(
+            nn.Linear(88 * 5 * 5, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 10)
+        )
 
-	def forward(self, x):
-		batch_size = x.size(0)
-		x = self.layer1(x)
-		x = self.layer2(x)
-		x = self.layer3(x)
-		x = self.layer4(x)
-		x = self.layer5(x)
-		x = self.layer6(x)
-		x = x.view(batch_size, -1)
-		x = self.fc(x)
-		return x
+    def forward(self, x):
+        batch_size = x.size(0)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.layer5(x)
+        x = self.layer6(x)
+        x = x.view(batch_size, -1)
+        x = self.fc(x)
+        return x
+
 
 def train():
-	for data in train_loader:
-		inputs, target = data
-		inputs, target = inputs.to(device), target.to(device)
-		optimizer.zero_grad()
+    for data in train_loader:
+        inputs, target = data
+        inputs, target = inputs.to(device), target.to(device)
+        optimizer.zero_grad()
 
-		# forward + backward + update
-		y_pred = model(inputs)
-		loss = criterion(y_pred, target)
-		loss.backward()
-		optimizer.step()
-	return loss
+        # forward + backward + update
+        y_pred = model(inputs)
+        loss = criterion(y_pred, target)
+        loss.backward()
+        optimizer.step()
+    return loss
+
 
 def test():  # 注意这里无epoch参数
-	correct = 0
-	total = 0
-	with torch.no_grad():  # 测试部分不计算梯度
-		for data in test_loader:
-			images, labels = data
-			images, labels = images.to(device), labels.to(device)
-			outputs = model(images)
-			_, predicted = torch.max(outputs.data, dim=1)  # 取出行号和对应最大值下标
-			total += labels.size(0)
-			correct += (predicted == labels).sum().item()
-			accuracy = correct/total
-	return accuracy
+    correct = 0
+    total = 0
+    with torch.no_grad():  # 测试部分不计算梯度
+        for data in test_loader:
+            images, labels = data
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, dim=1)  # 取出行号和对应最大值下标
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            accuracy = correct / total
+    return accuracy
+
 
 def time_since(since):  # 计时 返回几分几秒
-	s = time.time() - since
-	m = math.floor(s / 60)
-	s -= m*60
-	return '%dm%ds'%(m, s)
+    s = time.time() - since
+    m = math.floor(s / 60)
+    s -= m * 60
+    return '%dm%ds' % (m, s)
+
 
 # 主函数
 if __name__ == '__main__':
-	# load dataset
-	transform = transforms.Compose([
-		transforms.ToTensor(),
-		transforms.RandomHorizontalFlip(),
-		transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-	])
+    # load dataset
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.RandomHorizontalFlip(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
 
-	train_data = datasets.CIFAR10(root='dataset/CIFAR10/',train=True,
-								  transform=transform,
-								  download=True)
-	test_data = datasets.CIFAR10(root='dataset/CIFAR10/',
-								 train=False,
-								 transform=transform,
-								 download=True)
-	train_loader = DataLoader(train_data,
-							  batch_size=BATCH_SIZE,
-							  shuffle=True,
-							  num_workers=0)
-	test_loader = DataLoader(test_data,
-							 batch_size=BATCH_SIZE,
-							 shuffle=False,
-							 num_workers=0)
-	# design model using class
-	model = MyNet()  # 实例化model
-	device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-	model.to(device)
-	print(model)
+    train_data = datasets.CIFAR10(root='dataset/CIFAR10/', train=True,
+                                  transform=transform,
+                                  download=True)
+    test_data = datasets.CIFAR10(root='dataset/CIFAR10/',
+                                 train=False,
+                                 transform=transform,
+                                 download=True)
+    train_loader = DataLoader(train_data,
+                              batch_size=BATCH_SIZE,
+                              shuffle=True,
+                              num_workers=0)
+    test_loader = DataLoader(test_data,
+                             batch_size=BATCH_SIZE,
+                             shuffle=False,
+                             num_workers=0)
+    # design model using class
+    model = MyNet()  # 实例化model
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    model.to(device)
+    print(model)
 
-	# construct loss and optimizer
-	criterion = nn.CrossEntropyLoss(reduction='mean')
-	optimizer = optim.SGD(model.parameters(),
-						  lr=LEARNING_RATE,
-						  momentum=0.5)  # 带动量的优化
+    # construct loss and optimizer
+    criterion = nn.CrossEntropyLoss(reduction='mean')
+    optimizer = optim.SGD(model.parameters(),
+                          lr=LEARNING_RATE,
+                          momentum=0.5)  # 带动量的优化
 
-	# training and test cycle
-	start = time.time()
-	max_param = -100
-	# loss_ls = []
-	accuracy_ls = []
-	if os.path.exists(model_save_dir):
-		os.mkdir(model_save_dir)
-	if os.path.exists(model_save_path):  # 有保存的模型 则加载模型 并继续训练
-		ckpt = torch.load(model_save_path)
-		model.load_state_dict(ckpt['model'])
-		optimizer.load_state_dict(ckpt['optimizer'])
-		start_epoch = ckpt['epoch']
-		print('='*20,f'Load epoch {start_epoch} successful','='*20)
-	else:
-		start_epoch = 0
-		print('='*20,'No pre-train model found','='*20)
+    # training and test cycle
+    start = time.time()
+    # loss_ls = []
+    accuracy_ls = []
+    if not os.path.exists(model_save_dir):
+        os.mkdir(model_save_dir)
+    if os.path.exists(model_save_path):  # 有保存的模型 则加载模型 并继续训练
+        ckpt = torch.load(model_save_path)
+        model.load_state_dict(ckpt['model'])
+        optimizer.load_state_dict(ckpt['optimizer'])
+        start_epoch = ckpt['epoch']
+        best_epoch = start_epoch
+        max_acc = ckpt['acc']
+        print('=' * 20, f'Load epoch {start_epoch} successful', '=' * 20)
+    else:
+        start_epoch = 0
+        best_epoch = start_epoch
+        max_acc = -1
+        print('=' * 20, 'No pre-train model found', '=' * 20)
 
-	print('=' * 20, 'start training on:', device, '=' * 20)
-	for epoch in range(start_epoch+1, EPOCH+1):  # 1~EPOCH
-		loss = train()
-		accuracy = test()
-		total_time = time_since(start)
-		print('EPOCH:{}, Loss:{:.4f}， accuracy on test set: {:.2f}%, total time: {} '.format(epoch, loss, accuracy*100, total_time))
-		if accuracy > max_param:  # 保存最佳精确率模型
-			min_param = accuracy
-			state = {'model': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': epoch}  # 需要保存的模型参数
-			torch.save(state, model_save_path)
-			print('='*20,f'save model successful at epoch {epoch} ','='*20)
-		# loss_ls.append(loss)
-		accuracy_ls.append(accuracy)
+    print('=' * 20, 'start training on:', device, '=' * 20)
+    for epoch in range(start_epoch + 1, EPOCH + 1):  # 1~EPOCH
+        model.train()
+        loss = train()
+        model.eval()
+        accuracy = test()
+        total_time = time_since(start)
+        print(
+            'EPOCH:{}, Loss:{:.4f}， accuracy on test set: {:.2f}%, total time: {} '.format(epoch, loss, accuracy * 100,
+                                                                                           total_time))
+        if accuracy > max_acc:  # 保存最佳精确率模型
+            max_acc = accuracy
+            best_epoch = epoch
+            state = {'model': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': epoch,'acc':accuracy}  # 需要保存的模型参数
+            torch.save(state, model_save_path)
+            print(f'save model successful at epoch {epoch}')
+        # loss_ls.append(loss)
+        accuracy_ls.append(accuracy)
+    print('best model at epoch {}, acc: {:.4f}, '.format(best_epoch, max_acc))
 
-	epoch_np = np.arange(1, EPOCH+1, 1)
-	accuracy_np = np.array(accuracy_ls)
-	plt.plot(epoch_np, accuracy_np)
-	plt.xlabel('Accuracy')
-	plt.ylabel('Loss')
-	plt.savefig('Accuracy.png')
-	plt.show()
+    epoch_np = np.arange(1, EPOCH + 1, 1)
+    accuracy_np = np.array(accuracy_ls)
+    plt.plot(epoch_np, accuracy_np)
+    plt.xlabel('Accuracy')
+    plt.ylabel('Loss')
+    plt.savefig('Accuracy.png')
+    plt.show()
